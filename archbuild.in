@@ -50,6 +50,14 @@ done
 
 check_root SOURCE_DATE_EPOCH,SRCDEST,SRCPKGDEST,PKGDEST,LOGDEST,MAKEFLAGS,PACKAGER,GNUPGHOME
 
+if [ "${arch}" = "x86_64" ]; then
+	cache_dir=''
+else
+	mkdir -p '/var/cache/archbuild32'
+	cache_dir='-c/var/cache/archbuild32'
+	makechrootpkg_args+=('-d/var/cache/archbuild32:/var/cache/pacman/pkg')
+fi
+
 # Pass all arguments after -- right to makepkg
 makechrootpkg_args+=("${@:$OPTIND}")
 
@@ -72,6 +80,7 @@ if ${clean_first} || [[ ! -d "${chroots}/${repo}-${arch}" ]]; then
 	setarch "${arch}" mkarchroot \
 		-C "${pacman_config}" \
 		-M "${makepkg_config}" \
+		${cache_dir} \
 		"${chroots}/${repo}-${arch}/root" \
 		"${base_packages[@]}" || abort
 else
@@ -79,6 +88,7 @@ else
 	arch-nspawn \
 		-C "${pacman_config}" \
 		-M "${makepkg_config}" \
+		${cache_dir} \
 		"${chroots}/${repo}-${arch}/root" \
 		pacman -Syuu --noconfirm || abort
 fi
