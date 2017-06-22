@@ -24,11 +24,17 @@ BINPROGS = \
 	offload-build \
 
 GENERATED_CONFIGFILES = \
+	pacman-extra-i486.conf \
 	pacman-extra-i686.conf \
+	pacman-testing-i486.conf \
 	pacman-testing-i686.conf \
+	pacman-staging-i486.conf \
 	pacman-staging-i686.conf \
+	pacman-kde-unstable-i486.conf \
 	pacman-kde-unstable-i686.conf \
+	pacman-gnome-unstable-i486.conf \
 	pacman-gnome-unstable-i686.conf \
+	makepkg-i486.conf \
 	makepkg-i686.conf
 
 CONFIGFILES = \
@@ -57,17 +63,22 @@ COMMITPKG_LINKS = \
 	gnome-unstablepkg
 
 ARCHBUILD_LINKS = \
+	extra-i486-build \
 	extra-i686-build \
 	extra-x86_64-build \
+	testing-i486-build \
 	testing-i686-build \
 	testing-x86_64-build \
+	staging-i486-build \
 	staging-i686-build \
 	staging-x86_64-build \
 	multilib-build \
 	multilib-testing-build \
 	multilib-staging-build \
+	kde-unstable-i486-build \
 	kde-unstable-i686-build \
 	kde-unstable-x86_64-build \
+	gnome-unstable-i486-build \
 	gnome-unstable-i686-build \
 	gnome-unstable-x86_64-build
 
@@ -95,13 +106,29 @@ man: $(MANS)
 
 edit = sed -e "s|@pkgdatadir[@]|$(PREFIX)/share/devtools|g"
 
+makepkg-i486.conf: makepkg-x86_64.conf
+	@echo "GEN $@"
+	@sed 's,\(["=]\)x86[-_]64\([-" ]\),\1i486\2,g' "$<" > "$@"
+
 makepkg-i686.conf: makepkg-x86_64.conf
 	@echo "GEN $@"
 	@sed 's,\(["=]\)x86[-_]64\([-" ]\),\1i686\2,g' "$<" > "$@"
 
+pacman-%-i486.conf: pacman-%.conf
+	@echo "GEN $@"
+	@sed " \
+	s,/mirrorlist\$$,\032,; \
+	/^Architecture = / s/^.*\$$/Architecture = i486/; \
+	$$ a [bootstrap]\\n\
+	Server = http://archlinux32.andreasbaumann.cc/\$$repo/\$$arch \
+	" "$<" > "$@"
+
 pacman-%-i686.conf: pacman-%.conf
 	@echo "GEN $@"
-	@sed 's,/mirrorlist$$,\032,' "$<" > "$@"
+	@sed " \
+	s,/mirrorlist\$$,\032,; \
+	/^Architecture = / s/^.*$$/Architecture = i686/ \
+	" "$<" > "$@"
 
 %: %.in Makefile lib/common.sh
 	@echo "GEN $@"
