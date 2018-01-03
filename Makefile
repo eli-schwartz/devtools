@@ -28,7 +28,8 @@ GENERATED_CONFIGFILES = \
 	pacman-testing-i686.conf \
 	pacman-staging-i686.conf \
 	pacman-kde-unstable-i686.conf \
-	pacman-gnome-unstable-i686.conf
+	pacman-gnome-unstable-i686.conf \
+	makepkg-i686.conf
 
 CONFIGFILES = \
 	makepkg-x86_64.conf \
@@ -56,13 +57,18 @@ COMMITPKG_LINKS = \
 	gnome-unstablepkg
 
 ARCHBUILD_LINKS = \
+	extra-i686-build \
 	extra-x86_64-build \
+	testing-i686-build \
 	testing-x86_64-build \
+	staging-i686-build \
 	staging-x86_64-build \
 	multilib-build \
 	multilib-testing-build \
 	multilib-staging-build \
+	kde-unstable-i686-build \
 	kde-unstable-x86_64-build \
+	gnome-unstable-i686-build \
 	gnome-unstable-x86_64-build
 
 CROSSREPOMOVE_LINKS = \
@@ -88,6 +94,10 @@ all: $(GENERATED_CONFIGFILES) $(BINPROGS) bash_completion zsh_completion man
 man: $(MANS)
 
 edit = sed -e "s|@pkgdatadir[@]|$(PREFIX)/share/devtools|g"
+
+makepkg-i686.conf: makepkg-x86_64.conf
+	@echo "GEN $@"
+	@sed 's,\(["=]\)x86[-_]64\([-" ]\),\1i686\2,g' "$<" > "$@"
 
 pacman-%-i686.conf: pacman-%.conf
 	@echo "GEN $@"
