@@ -1,0 +1,110 @@
+#!/bin/bash
+# License: GNU GPLv2
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; version 2 of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+m4_include(lib/common.sh)
+m4_include(lib/archroot.sh)
+
+declare -A buildinfo
+declare -a buildenv buildopts installed installpkgs
+
+while getopts 'hC:M:c:f:s' arg; do
+        case "$arg" in
+                C) pac_conf="$OPTARG" ;;
+                M) makepkg_conf="$OPTARG" ;;
+                c) cache_dir="$OPTARG" ;;
+                f) files+=("$OPTARG") ;;
+                s) nosetarch=1 ;;
+                h|?) usage ;;
+                *) error "invalid argument '%s'" "$arg"; usage ;;
+        esac
+done
+shift $((OPTIND - 1))
+
+if (( ${#cache_dirs[@]} == 0 )); then
+	mapfile -t cache_dirs < <($pacconf_cmd CacheDir)
+fi
+
+parse_buildinfo() {
+    local line var val
+
+    while read -r line; do
+        var="${line%% = *}"
+        val="${line#* = }"
+        case $var in
+            buildenv)
+                buildenv+=("$val")
+                ;;
+            options)
+                buildopts+=("$val")
+                ;;
+            installed)
+                installed+=("$val")
+                ;;
+            *)
+                buildinfo["$var"]="$val"
+                ;;
+        esac
+    done
+}
+
+get_pkgfile() {
+    local pkgfile="$1" cdir
+    local pkgname=${pkgfile%-*-*-*.pkg.tar*}
+
+    for cdir in "${cache_dirs[@]}"; do
+        if [[ -f $cdir/$pkgfile ]]; then
+            printf '%s\n' "$cdir/$pkgfile"
+            return 0
+        fi
+    done
+
+    curl -Llf -o "${cache_dirs[0]}/$pkgfile" "$archiveurl/${pkgname:0:1}/$pkgname/$pkgfile" || die
+    curl -Llf -o "${cache_dirs[0]}/$pkgfile.sig" "$archiveurl/${pkgname:0:1}/$pkgname/$pkgfile.sig" || die
+    printf '%s\n' "${cache_dirs[0]}/$pkgfile"
+}
+
+pkgfile="$1"
+
+parse_buildinfo < <(bsdtar -xOqf "$pkgfile" .BUILDINFO)
+export SOURCE_DATE_EPOCH="${buildinfo[builddate]}"
+PACKAGER="${buildinfo[packager]}"
+BUILDDIR="${buildinfo[builddir]}"
+
+repro_day="$(date --date=@$SOURCE_DATE_EPOCH +"%Y/%m/%d")"
+mirrorlist='Server = https://archive.archlinux.org/repos/'"$repro_day"'/$repo/os/$arch'
+
+## TODO: mkarchroot this and install packages
+#for fname in "${installed[@]}"; do
+#    installpkgs+=(-I "$(get_pkgfile "$fname")")
+#done
+# mkarchroot ...
+
+
+# use makechrootpkg to prep the build directory
+#TODO: where is buildroot/chroot?
+makechrootpkg -r "$buildroot" -l "$chroot" -- --packagelist || exit 1
+
+# set detected makepkg.conf options
+{
+    for var in PACKAGER BUILDDIR; do
+        printf '%s=%s' "$var" "${!var@Q}"
+    done
+    printf 'OPTIONS=(%s)' "${buildopts[*]@Q}"
+    printf 'BUILDENV=(%s)' "${buildenv[*]@Q}"
+} >> "$buildroot/$chroot"/etc/makepkg.conf >> "$buildroot/$chroot"/etc/makepkg.conf
+install -d -o "${SUDO_UID:-$UID}" -g "$(id -g "${SUDO_UID:-$UID}")" "$buildroot/$chroot/$BUILDDIR"
+
+# kick off the build
+arch-nspawn "$buildroot/$chroot" \
+    --bind="$PWD:/startdir" \
+    --bind="$SRCDEST:/srcdest" \
+    /chrootbuild -C --noconfirm --log --holdver --skipinteg
