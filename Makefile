@@ -23,6 +23,13 @@ BINPROGS = \
 	$(IN_PROGS) \
 	offload-build \
 
+GENERATED_CONFIGFILES = \
+	pacman-extra-i686.conf \
+	pacman-testing-i686.conf \
+	pacman-staging-i686.conf \
+	pacman-kde-unstable-i686.conf \
+	pacman-gnome-unstable-i686.conf
+
 CONFIGFILES = \
 	makepkg-x86_64.conf \
 	pacman-extra.conf \
@@ -32,7 +39,8 @@ CONFIGFILES = \
 	pacman-multilib-testing.conf \
 	pacman-multilib-staging.conf \
 	pacman-kde-unstable.conf \
-	pacman-gnome-unstable.conf
+	pacman-gnome-unstable.conf \
+	$(GENERATED_CONFIGFILES)
 
 COMMITPKG_LINKS = \
 	extrapkg \
@@ -76,10 +84,14 @@ MANS = \
 	doc/find-libprovides.1
 
 
-all: $(BINPROGS) bash_completion zsh_completion man
+all: $(GENERATED_CONFIGFILES) $(BINPROGS) bash_completion zsh_completion man
 man: $(MANS)
 
 edit = sed -e "s|@pkgdatadir[@]|$(PREFIX)/share/devtools|g"
+
+pacman-%-i686.conf: pacman-%.conf
+	@echo "GEN $@"
+	@sed 's,/mirrorlist$$,\032,' "$<" > "$@"
 
 %: %.in Makefile lib/common.sh
 	@echo "GEN $@"
@@ -95,7 +107,7 @@ doc/%: doc/%.asciidoc
 	a2x --no-xmllint --asciidoc-opts="-f doc/asciidoc.conf" -d manpage -f manpage -D doc $<
 
 clean:
-	rm -f $(IN_PROGS) bash_completion zsh_completion $(MANS)
+	rm -f $(GENERATED_CONFIGFILES) $(IN_PROGS) bash_completion zsh_completion $(MANS)
 
 install:
 	install -dm0755 $(DESTDIR)$(PREFIX)/bin
