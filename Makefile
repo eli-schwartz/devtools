@@ -3,7 +3,7 @@ V=20180531
 PREFIX = /usr/local
 MANDIR = $(PREFIX)/share/man
 
-BINPROGS = \
+IN_PROGS = \
 	checkpkg \
 	commitpkg \
 	archco \
@@ -17,6 +17,10 @@ BINPROGS = \
 	arch-nspawn \
 	mkarchroot \
 	makechrootpkg
+
+BINPROGS = \
+	$(IN_PROGS) \
+	offload-build
 
 CONFIGFILES = \
 	makepkg-x86_64.conf \
@@ -85,7 +89,7 @@ doc/%: doc/%.asciidoc
 	a2x --no-xmllint --asciidoc-opts="-f doc/asciidoc.conf" -d manpage -f manpage -D doc $<
 
 clean:
-	rm -f $(BINPROGS) bash_completion zsh_completion $(MANS)
+	rm -f $(IN_PROGS) bash_completion zsh_completion $(MANS)
 
 install:
 	install -dm0755 $(DESTDIR)$(PREFIX)/bin
