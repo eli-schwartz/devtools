@@ -89,8 +89,13 @@ for file in "${files[@]}"; do
 	cp "$file" "$working_dir$file"
 done
 
+eval "$(grep -a '^CARCH=' "${makepkg_conf:-/etc/makepkg.conf}")"
+if [[ $CARCH != x86_64 ]]; then
+    gpgdir=(--gpgdir /etc/pacman.d/gnupg32)
+fi
+
 pacstrap -${umode}Mcd ${pac_conf:+-C "$pac_conf"} "$working_dir" \
-	"${cache_dirs[@]/#/--cachedir=}" "$@" || die 'Failed to install all packages'
+	"${cache_dirs[@]/#/--cachedir=}" "${gpgdir[@]}" "$@" || die 'Failed to install all packages'
 
 printf '%s.UTF-8 UTF-8\n' en_US de_DE > "$working_dir/etc/locale.gen"
 echo 'LANG=en_US.UTF-8' > "$working_dir/etc/locale.conf"
