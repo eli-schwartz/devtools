@@ -48,7 +48,8 @@ if [[ $(svn status -q) ]]; then
 fi
 
 pushd .. >/dev/null
-IFS=$'\n' read -r -d '' -a known_files < <(svn ls -r HEAD "$trunk")
+mapfile -t known_files < <(svn ls -r HEAD "$trunk")
+(( ${#known_files[@]} )) || die "failed to discover committed files"
 for file in "${known_files[@]}"; do
 	if [[ ${file:(-1)} = '/' ]]; then
 		die "archrelease: subdirectories are not supported in package directories!"
@@ -65,12 +66,17 @@ for tag in "$@"; do
 	stat_busy "Copying %s to %s" "${trunk}" "${tag}"
 
 	if [[ -d repos/$tag ]]; then
-		declare -a trash
-		trash=()
-		while read -r file; do
-			trash+=("repos/$tag/$file")
-		done < <(svn ls "repos/$tag")
-		[[ ${#trash[@]} == 0 ]] || svn rm -q "${trash[@]/%/@}"
+		mapfile -t trash < <(svn ls "repos/$tag" || echo "svn ls error")
+		if (( ${#trash[@]} )); then
+			# you cannot get return codes from process substitution, and we
+			# don't know whether there are simply no existing tagged packages,
+			# so use flag value
+			if [[ ${trash[-1]} = "svn ls error" ]]; then
+				die "failed to discover existing files"
+			fi
+			trash=("${trash[@]/#/repos/$tag/}")
+			svn rm -q "${trash[@]/%/@}"
+		fi
 	else
 		mkdir -p "repos/$tag"
 		svn add --parents -q "repos/$tag"
