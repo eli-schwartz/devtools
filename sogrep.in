@@ -31,8 +31,8 @@ arches=('x86_64')
 REFRESH=0
 VERBOSE=0
 
-source "/usr/share/makepkg"/util/parseopts.sh
-source "/usr/share/makepkg"/util/util.sh
+source "@libmakepkg@"/util/parseopts.sh
+source "@libmakepkg@"/util/util.sh
 
 recache() {
     local repo arch verbosity=-s
