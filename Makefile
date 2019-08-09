@@ -2,6 +2,7 @@ V=20191016
 
 PREFIX = /usr/local
 MANDIR = $(PREFIX)/share/man
+LIBMAKEPKG = $(shell pkg-config libmakepkg --variable libmakepkgdir)
 
 IN_PROGS = \
 	archco \
@@ -21,7 +22,7 @@ IN_PROGS = \
 
 BINPROGS = \
 	$(IN_PROGS) \
-	offload-build \
+	offload-build
 
 CONFIGFILES = \
 	makepkg-x86_64.conf \
@@ -79,7 +80,9 @@ MANS = \
 all: $(BINPROGS) bash_completion zsh_completion man
 man: $(MANS)
 
-edit = sed -e "s|@pkgdatadir[@]|$(PREFIX)/share/devtools|g"
+edit = sed \
+	   -e "s|@pkgdatadir[@]|$(PREFIX)/share/devtools|g" \
+	   -e "s|@libmakepkg[@]|$(LIBMAKEPKG)|g"
 
 %: %.in Makefile lib/common.sh
 	@echo "GEN $@"

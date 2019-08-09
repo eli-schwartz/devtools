@@ -8,7 +8,7 @@ _INCLUDE_COMMON_SH="$(set +o|grep nounset)"
 
 set +u +o posix
 # shellcheck disable=1091
-. /usr/share/makepkg/util.sh
+source "@libmakepkg@"/util.sh
 $_INCLUDE_COMMON_SH
 
 # Avoid any encoding problems
