@@ -62,14 +62,16 @@ get_pkgfile() {
 
     for cdir in "${cache_dirs[@]}"; do
         if [[ -f $cdir/$pkgfile ]]; then
-            printf '%s\n' "$cdir/$pkgfile"
-            return 0
+            break
         fi
     done
 
-    curl -Llf -o "${cache_dirs[0]}/$pkgfile" "$archiveurl/${pkgname:0:1}/$pkgname/$pkgfile" || die
-    curl -Llf -o "${cache_dirs[0]}/$pkgfile.sig" "$archiveurl/${pkgname:0:1}/$pkgname/$pkgfile.sig" || die
-    printf '%s\n' "${cache_dirs[0]}/$pkgfile"
+    for f in "${pkgfile}" "${pkgfile}.sig"; do
+        if [[ ! -f "${cdir}/${f}" ]]; then
+            curl -Llf -o "${cache_dirs[0]}/${f}" "${archiveurl}/${pkgname:0:1}/${pkgname}/${f}" || die
+        fi
+    done
+    printf '%s\n' "file://${cdir}/${pkgfile}"
 }
 
 pkgfile="$1"
