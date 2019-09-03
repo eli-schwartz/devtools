@@ -13,8 +13,14 @@
 m4_include(lib/common.sh)
 m4_include(lib/archroot.sh)
 
+source /usr/share/makepkg/util/config.sh
+
 declare -A buildinfo
 declare -a buildenv buildopts installed installpkgs
+
+archiveurl='https://archive.archlinux.org/packages'
+buildroot=/var/lib/archbuild/reproducible
+chroot=testenv
 
 while getopts 'hC:M:c:f:s' arg; do
         case "$arg" in
@@ -30,7 +36,7 @@ done
 shift $((OPTIND - 1))
 
 if (( ${#cache_dirs[@]} == 0 )); then
-	mapfile -t cache_dirs < <($pacconf_cmd CacheDir)
+	mapfile -t cache_dirs < <(pacman-conf CacheDir)
 fi
 
 parse_buildinfo() {
@@ -81,14 +87,33 @@ export SOURCE_DATE_EPOCH="${buildinfo[builddate]}"
 PACKAGER="${buildinfo[packager]}"
 BUILDDIR="${buildinfo[builddir]}"
 
+load_makepkg_config
+[[ -d $SRCDEST ]] || SRCDEST=$PWD
+
 repro_day="$(date --date=@$SOURCE_DATE_EPOCH +"%Y/%m/%d")"
 mirrorlist='Server = https://archive.archlinux.org/repos/'"$repro_day"'/$repo/os/$arch'
 
 ## TODO: mkarchroot this and install packages
 #for fname in "${installed[@]}"; do
-#    installpkgs+=(-I "$(get_pkgfile "$fname")")
+#    installpkgs+=(-I "$(get_pkgfile "${fname}.pkg.tar.xz")")
+#    installpkgs_no_i+=("$(get_pkgfile "${fname}.pkg.tar.xz")")
 #done
-# mkarchroot ...
+# mkarchroot working-dir base-devel
+## install the things
+# makechrootpkg "${installpkgs[@]}" -- --verifysource
+
+# nuke and restore reproducible testenv
+for copy in "${buildroot}"/*/; do
+    [[ -d ${copy} ]] || continue
+    subvolume_delete_recursive "${copy}"
+done
+rm -rf --one-file-system "${buildroot}"
+mkdir -m755 -p "${buildroot}"
+
+# alternative with -U, needs proper pacstrap support or reimplementation
+for fname in "${installed[@]}"; do
+    get_pkgfile "${fname}.pkg.tar.xz"
+done | mkarchroot -U "$buildroot"/root -
 
 
 # use makechrootpkg to prep the build directory
@@ -98,10 +123,10 @@ makechrootpkg -r "$buildroot" -l "$chroot" -- --packagelist || exit 1
 # set detected makepkg.conf options
 {
     for var in PACKAGER BUILDDIR; do
-        printf '%s=%s' "$var" "${!var@Q}"
+        printf '%s=%s\n' "$var" "${!var@Q}"
     done
-    printf 'OPTIONS=(%s)' "${buildopts[*]@Q}"
-    printf 'BUILDENV=(%s)' "${buildenv[*]@Q}"
+    printf 'OPTIONS=(%s)\n' "${buildopts[*]@Q}"
+    printf 'BUILDENV=(%s)\n' "${buildenv[*]@Q}"
 } >> "$buildroot/$chroot"/etc/makepkg.conf >> "$buildroot/$chroot"/etc/makepkg.conf
 install -d -o "${SUDO_UID:-$UID}" -g "$(id -g "${SUDO_UID:-$UID}")" "$buildroot/$chroot/$BUILDDIR"
 
@@ -109,4 +134,5 @@ install -d -o "${SUDO_UID:-$UID}" -g "$(id -g "${SUDO_UID:-$UID}")" "$buildroot/
 arch-nspawn "$buildroot/$chroot" \
     --bind="$PWD:/startdir" \
     --bind="$SRCDEST:/srcdest" \
-    /chrootbuild -C --noconfirm --log --holdver --skipinteg
+    /chrootbuild -C --noconfirm --log --holdver --skipinteg &&
+echo "success! built packages can be found in $buildroot/$chroot/pkgdest"
