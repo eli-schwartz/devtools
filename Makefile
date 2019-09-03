@@ -15,6 +15,7 @@ IN_PROGS = \
 	finddeps \
 	find-libdeps \
 	lddd \
+	makerepropkg \
 	mkarchroot \
 	makechrootpkg \
 	rebuildpkgs \
