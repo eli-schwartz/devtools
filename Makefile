@@ -17,6 +17,7 @@ IN_PROGS = \
 	lddd \
 	mkarchroot \
 	makechrootpkg \
+	makerepropkg \
 	rebuildpkgs \
 	sogrep
 
