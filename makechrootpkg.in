@@ -222,11 +222,17 @@ _chrootbuild() {
 }
 
 _chrootnamcap() {
-	pacman -S --needed --noconfirm namcap
-	for pkgfile in /startdir/PKGBUILD /pkgdest/*; do
-		echo "Checking ${pkgfile##*/}"
-		sudo -u builduser namcap "$pkgfile" 2>&1 | tee "/logdest/${pkgfile##*/}-namcap.log"
+	namcap_warnings=()
+	mapfile -t pkgfiles < <(sudo -u builduser bash -c 'cd /startdir; makepkg --packagelist')
+	pacman -S --needed --noconfirm namcap pacutils-git
+	for pkgfile in /startdir/PKGBUILD "${pkgfiles[@]}"; do
+		if [[ $pkgfile = *.pkg.tar* ]]; then
+			pacinstall --file --cascade --no-confirm --resolve-conflicts=all "$pkgfile" || exit
+		fi
+		namcap_warnings+=(" -> Checking ${pkgfile##*/}")
+		namcap_warnings+=("$(sudo -u builduser namcap "$pkgfile" 2>&1 | tee "/logdest/${pkgfile##*/}-namcap.log")")
 	done
+	printf '%s\n' "${namcap_warnings[@]}"
 }
 
 download_sources() {
@@ -280,7 +286,7 @@ while getopts 'hcur:I:l:nTD:d:U:' arg; do
 		r) passeddir="$OPTARG" ;;
 		I) install_pkgs+=("$OPTARG") ;;
 		l) copy="$OPTARG" ;;
-		n) run_namcap=1; makepkg_args+=(--install) ;;
+		n) run_namcap=1; ;;
 		T) temp_chroot=1; copy+="-$$" ;;
 		U) makepkg_user="$OPTARG" ;;
 		h|*) usage ;;
