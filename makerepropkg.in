@@ -82,13 +82,13 @@ get_pkgfile() {
 
 pkgfile="$1"
 
+load_makepkg_config
+[[ -d $SRCDEST ]] || SRCDEST=$PWD
+
 parse_buildinfo < <(bsdtar -xOqf "$pkgfile" .BUILDINFO)
 export SOURCE_DATE_EPOCH="${buildinfo[builddate]}"
 PACKAGER="${buildinfo[packager]}"
 BUILDDIR="${buildinfo[builddir]}"
-
-load_makepkg_config
-[[ -d $SRCDEST ]] || SRCDEST=$PWD
 
 repro_day="$(date --date=@$SOURCE_DATE_EPOCH +"%Y/%m/%d")"
 mirrorlist='Server = https://archive.archlinux.org/repos/'"$repro_day"'/$repo/os/$arch'
