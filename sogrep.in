@@ -23,6 +23,7 @@ m4_include(lib/common.sh)
 # globals
 : ${SOLINKS_MIRROR:="https://mirror.pkgbuild.com"}
 : ${SOCACHE_DIR:="${XDG_CACHE_HOME:-${HOME}/.cache}/sogrep"}
+: ${SOGREP_CONFIG:="${XDG_CONDFIG_HOME:-${HOME}/.config}/sogrep.conf"}
 
 m4_include(lib/valid-repos.sh)
 arches=('x86_64')
@@ -41,13 +42,16 @@ recache() {
 
     for repo in "${_repos[@]}"; do
         for arch in "${arches[@]}"; do
+            refresh_args=()
             dbname=${SOCACHE_DIR}/${arch}/${repo}.links.tar.gz
 
             # delete extracted tarballs from previous sogrep versions
             rm -rf "${SOCACHE_DIR}/${arch}/${repo}/"
 
+            (( REFRESH > 1 )) || refresh_args=(-z "${dbname}")
+
             mkdir -p "${dbname%/*}"
-            curl -LR "$verbosity" -o "${dbname}" -z "${dbname}" \
+            curl -LR "$verbosity" -o "${dbname}" "${refresh_args[@]}" \
                 "${SOLINKS_MIRROR}/${repo}/os/${arch}/${repo}.links.tar.gz"
         done
     done
@@ -113,13 +117,19 @@ _EOF_
 # utility function to resort with multiple repos + no-verbose
 resort() { sort -u; }
 
+if [[ -f ${SOGREP_CONFIG} ]]; then
+    while IFS='=' read -r key value; do
+        [[ -v ${key} ]] && printf -v "${key}" %s "${value}"
+    done < "${SOGREP_CONFIG}"
+fi
+
 if (( $# == 0 )); then
     echo "error: No arguments passed."
     echo "Try '${BASH_SOURCE[0]##*/} --help' for more information."
     exit 1
 fi
-OPT_SHORT='vrh'
-OPT_LONG=('verbose' 'refresh' 'help')
+OPT_SHORT='vroh'
+OPT_LONG=('verbose' 'refresh' 'offline' 'help')
 if ! parseopts "$OPT_SHORT" "${OPT_LONG[@]}" -- "$@"; then
     exit 1
 fi
@@ -132,7 +142,10 @@ while :; do
             VERBOSE=1
             ;;
         -r|--refresh)
-            REFRESH=1
+            (( REFRESH += 1 ))
+            ;;
+        -o|--offline)
+            REFRESH=0
             ;;
         -h|--help)
             usage
