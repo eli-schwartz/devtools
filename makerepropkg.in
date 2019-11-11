@@ -22,11 +22,13 @@ archiveurl='https://archive.archlinux.org/packages'
 buildroot=/var/lib/archbuild/reproducible
 chroot=testenv
 
+check_root
+
 while getopts 'hC:M:c:f:s' arg; do
         case "$arg" in
                 C) pac_conf="$OPTARG" ;;
                 M) makepkg_conf="$OPTARG" ;;
-                c) cache_dir="$OPTARG" ;;
+                c) cache_dirs+=("$OPTARG") ;;
                 f) files+=("$OPTARG") ;;
                 s) nosetarch=1 ;;
                 h|?) usage ;;
@@ -45,53 +47,67 @@ parse_buildinfo() {
     while read -r line; do
         var="${line%% = *}"
         val="${line#* = }"
-        case $var in
+        case ${var} in
             buildenv)
-                buildenv+=("$val")
+                buildenv+=("${val}")
                 ;;
             options)
-                buildopts+=("$val")
+                buildopts+=("${val}")
                 ;;
             installed)
-                installed+=("$val")
+                installed+=("${val}")
                 ;;
             *)
-                buildinfo["$var"]="$val"
+                buildinfo["${var}"]="${val}"
                 ;;
         esac
     done
 }
 
 get_pkgfile() {
-    local pkgfile="$1" cdir
-    local pkgname=${pkgfile%-*-*-*.pkg.tar*}
+    local cdir=${cache_dirs[0]}
+    local pkgfilebase=${1}
+    local pkgname=${pkgfilebase%-*-*-*}
+    local pkgfile ext
 
-    for cdir in "${cache_dirs[@]}"; do
-        if [[ -f $cdir/$pkgfile ]]; then
-            break
-        fi
+    for ext in .xz .zstd ''; do
+        pkgfile=${pkgfilebase}.pkg.tar${ext}
+
+        for c in "${cache_dirs[@]}"; do
+            if [[ -f ${c}/${pkgfile} ]]; then
+                cdir=${c}
+                break
+            fi
+        done
+
+        for f in "${pkgfile}" "${pkgfile}.sig"; do
+            if [[ ! -f "${cdir}/${f}" ]]; then
+                printf '%s\n' "-> retrieving '${f}'..." >&2
+                curl -Llf -# -o "${cdir}/${f}" "${archiveurl}/${pkgname:0:1}/${pkgname}/${f}" || continue 2
+            fi
+        done
+        printf '%s\n' "file://${cdir}/${pkgfile}"
+        return 0
     done
 
-    for f in "${pkgfile}" "${pkgfile}.sig"; do
-        if [[ ! -f "${cdir}/${f}" ]]; then
-            curl -Llf -o "${cache_dirs[0]}/${f}" "${archiveurl}/${pkgname:0:1}/${pkgname}/${f}" || die
-        fi
-    done
-    printf '%s\n' "file://${cdir}/${pkgfile}"
+    return 1
 }
 
 pkgfile="$1"
 
+ORIG_HOME=${HOME}
+IFS=: read -r _ _ _ _ _ HOME _ < <(getent passwd "${SUDO_USER:-$USER}")
 load_makepkg_config
-[[ -d $SRCDEST ]] || SRCDEST=$PWD
+HOME=${ORIG_HOME}
+[[ -d ${SRCDEST} ]] || SRCDEST=${PWD}
 
-parse_buildinfo < <(bsdtar -xOqf "$pkgfile" .BUILDINFO)
+parse_buildinfo < <(bsdtar -xOqf "${pkgfile}" .BUILDINFO)
 export SOURCE_DATE_EPOCH="${buildinfo[builddate]}"
 PACKAGER="${buildinfo[packager]}"
 BUILDDIR="${buildinfo[builddir]}"
 
-repro_day="$(date --date=@$SOURCE_DATE_EPOCH +"%Y/%m/%d")"
-mirrorlist='Server = https://archive.archlinux.org/repos/'"$repro_day"'/$repo/os/$arch'
+repro_day="$(date --date=@${SOURCE_DATE_EPOCH} +"%Y/%m/%d")"
+mirrorlist='Server = https://archive.archlinux.org/repos/'"${repro_day}"'/$repo/os/$arch'
 
 ## TODO: mkarchroot this and install packages
 #for fname in "${installed[@]}"; do
@@ -112,27 +128,31 @@ mkdir -m755 -p "${buildroot}"
 
 # alternative with -U, needs proper pacstrap support or reimplementation
 for fname in "${installed[@]}"; do
-    get_pkgfile "${fname}.pkg.tar.xz"
-done | mkarchroot -U "$buildroot"/root -
+    if ! allpkgfiles+=("$(get_pkgfile "${fname}")"); then
+        echo "failed to retrieve ${fname}"
+        exit 1
+    fi
+done
+printf '%s\n' "${allpkgfiles[@]}" | mkarchroot -U "${buildroot}"/root -
 
 
 # use makechrootpkg to prep the build directory
 #TODO: where is buildroot/chroot?
-makechrootpkg -r "$buildroot" -l "$chroot" -- --packagelist || exit 1
+makechrootpkg -r "${buildroot}" -l "${chroot}" -- --packagelist || exit 1
 
 # set detected makepkg.conf options
 {
     for var in PACKAGER BUILDDIR; do
-        printf '%s=%s\n' "$var" "${!var@Q}"
+        printf '%s=%s\n' "${var}" "${!var@Q}"
     done
     printf 'OPTIONS=(%s)\n' "${buildopts[*]@Q}"
     printf 'BUILDENV=(%s)\n' "${buildenv[*]@Q}"
-} >> "$buildroot/$chroot"/etc/makepkg.conf >> "$buildroot/$chroot"/etc/makepkg.conf
-install -d -o "${SUDO_UID:-$UID}" -g "$(id -g "${SUDO_UID:-$UID}")" "$buildroot/$chroot/$BUILDDIR"
+} >> "${buildroot}/${chroot}"/etc/makepkg.conf >> "${buildroot}/${chroot}"/etc/makepkg.conf
+install -d -o "${SUDO_UID:-$UID}" -g "$(id -g "${SUDO_UID:-$UID}")" "${buildroot}/${chroot}/${BUILDDIR}"
 
 # kick off the build
-arch-nspawn "$buildroot/$chroot" \
-    --bind="$PWD:/startdir" \
-    --bind="$SRCDEST:/srcdest" \
+arch-nspawn "${buildroot}/${chroot}" \
+    --bind="${PWD}:/startdir" \
+    --bind="${SRCDEST}:/srcdest" \
     /chrootbuild -C --noconfirm --log --holdver --skipinteg &&
-echo "success! built packages can be found in $buildroot/$chroot/pkgdest"
+echo "success! built packages can be found in ${buildroot}/${chroot}/pkgdest"
