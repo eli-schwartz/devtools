@@ -134,7 +134,7 @@ for fname in "${installed[@]}"; do
         exit 1
     fi
 done
-printf '%s\n' "${allpkgfiles[@]}" | mkarchroot -U "${buildroot}"/root -
+printf '%s\n' "${allpkgfiles[@]}" | mkarchroot -U "${buildroot}"/root - || exit 1
 
 
 # use makechrootpkg to prep the build directory
