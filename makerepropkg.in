@@ -75,26 +75,41 @@ get_pkgfile() {
     return 1
 }
 
-while getopts 'hC:M:c:f:s' arg; do
+usage() {
+    cat << __EOF__
+usage: ${BASH_SOURCE[0]##*/} [options] <package_file>
+
+Run this script in a PKGBUILD dir to build a package inside a
+clean chroot while attempting to reproduce it. The package file
+will be used to derive metadata needed for reproducing the
+package, including the .PKGINFO as well as the buildinfo.
+
+For more details see https://reproducible-builds.org/
+
+OPTIONS
+    -h              Show this usage message
+    -c              Set pacman cache
+__EOF__
+}
+
+while getopts 'hC:M:c:s' arg; do
         case "$arg" in
-                C) pac_conf="$OPTARG" ;;
-                M) makepkg_conf="$OPTARG" ;;
+                C) archroot_args+=(-C "$OPTARG") ;;
+                M) archroot_args+=(-M "$OPTARG") ;;
                 c) cache_dirs+=("$OPTARG") ;;
-                h|?) usage ;;
-                *) error "invalid argument '%s'" "$arg"; usage ;;
+                h) usage; exit 0 ;;
+                *|?) usage; exit 1 ;;
         esac
 done
 shift $((OPTIND - 1))
 
 check_root
 
+pkgfile="$1"
+
 if (( ${#cache_dirs[@]} == 0 )); then
 	mapfile -t cache_dirs < <(pacman-conf CacheDir)
 fi
-
-
-
-pkgfile="$1"
 
 ORIG_HOME=${HOME}
 IFS=: read -r _ _ _ _ _ HOME _ < <(getent passwd "${SUDO_USER:-$USER}")
@@ -134,7 +149,7 @@ for fname in "${installed[@]}"; do
         exit 1
     fi
 done
-printf '%s\n' "${allpkgfiles[@]}" | mkarchroot -U "${buildroot}"/root - || exit 1
+printf '%s\n' "${allpkgfiles[@]}" | mkarchroot -U "${archroot_args[@]}" "${buildroot}"/root - || exit 1
 
 
 # use makechrootpkg to prep the build directory
