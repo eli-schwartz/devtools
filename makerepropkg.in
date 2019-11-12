@@ -14,6 +14,7 @@ m4_include(lib/common.sh)
 m4_include(lib/archroot.sh)
 
 source /usr/share/makepkg/util/config.sh
+source /usr/share/makepkg/util/message.sh
 
 declare -A buildinfo
 declare -a buildenv buildopts installed installpkgs
@@ -82,7 +83,7 @@ get_pkgfile() {
 
         for f in "${pkgfile}" "${pkgfile}.sig"; do
             if [[ ! -f "${cdir}/${f}" ]]; then
-                printf '%s\n' "-> retrieving '${f}'..." >&2
+                msg2 "retrieving '%s'..." "${f}" >&2
                 curl -Llf -# -o "${cdir}/${f}" "${archiveurl}/${pkgname:0:1}/${pkgname}/${f}" || continue 2
             fi
         done
@@ -129,7 +130,7 @@ mkdir -m755 -p "${buildroot}"
 # alternative with -U, needs proper pacstrap support or reimplementation
 for fname in "${installed[@]}"; do
     if ! allpkgfiles+=("$(get_pkgfile "${fname}")"); then
-        echo "failed to retrieve ${fname}"
+        error "failed to retrieve ${fname}"
         exit 1
     fi
 done
@@ -154,5 +155,15 @@ install -d -o "${SUDO_UID:-$UID}" -g "$(id -g "${SUDO_UID:-$UID}")" "${buildroot
 arch-nspawn "${buildroot}/${chroot}" \
     --bind="${PWD}:/startdir" \
     --bind="${SRCDEST}:/srcdest" \
-    /chrootbuild -C --noconfirm --log --holdver --skipinteg &&
-echo "success! built packages can be found in ${buildroot}/${chroot}/pkgdest"
+    /chrootbuild -C --noconfirm --log --holdver --skipinteg
+
+if (( $? == 0 )); then
+    msg2 "built succeeded! built packages can be found in ${buildroot}/${chroot}/pkgdest"
+    msg "comparing artifacts..."
+    if cmp -s "${pkgfile}" "${buildroot}/${chroot}/pkgdest/${pkgfile##*/}"; then
+        msg2 "Package successfully reproduced!"
+    else
+        warning "Package is not reproducible. :("
+        sha256sum "${pkgfile}" "${buildroot}/${chroot}/pkgdest/${pkgfile##*/}"
+    fi
+fi
