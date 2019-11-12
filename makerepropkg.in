@@ -23,25 +23,6 @@ archiveurl='https://archive.archlinux.org/packages'
 buildroot=/var/lib/archbuild/reproducible
 chroot=testenv
 
-check_root
-
-while getopts 'hC:M:c:f:s' arg; do
-        case "$arg" in
-                C) pac_conf="$OPTARG" ;;
-                M) makepkg_conf="$OPTARG" ;;
-                c) cache_dirs+=("$OPTARG") ;;
-                f) files+=("$OPTARG") ;;
-                s) nosetarch=1 ;;
-                h|?) usage ;;
-                *) error "invalid argument '%s'" "$arg"; usage ;;
-        esac
-done
-shift $((OPTIND - 1))
-
-if (( ${#cache_dirs[@]} == 0 )); then
-	mapfile -t cache_dirs < <(pacman-conf CacheDir)
-fi
-
 parse_buildinfo() {
     local line var val
 
@@ -93,6 +74,25 @@ get_pkgfile() {
 
     return 1
 }
+
+while getopts 'hC:M:c:f:s' arg; do
+        case "$arg" in
+                C) pac_conf="$OPTARG" ;;
+                M) makepkg_conf="$OPTARG" ;;
+                c) cache_dirs+=("$OPTARG") ;;
+                h|?) usage ;;
+                *) error "invalid argument '%s'" "$arg"; usage ;;
+        esac
+done
+shift $((OPTIND - 1))
+
+check_root
+
+if (( ${#cache_dirs[@]} == 0 )); then
+	mapfile -t cache_dirs < <(pacman-conf CacheDir)
+fi
+
+
 
 pkgfile="$1"
 
