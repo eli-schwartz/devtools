@@ -105,7 +105,12 @@ shift $((OPTIND - 1))
 
 check_root
 
-pkgfile="$1"
+if [[ -n $1 ]]; then
+    pkgfile="$1"
+else
+    error "no package file specified. Try '${BASH_SOURCE[0]##*/} -h' for more information. "
+    exit 1
+fi
 
 if (( ${#cache_dirs[@]} == 0 )); then
 	mapfile -t cache_dirs < <(pacman-conf CacheDir)
