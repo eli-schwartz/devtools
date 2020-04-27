@@ -74,12 +74,12 @@ while (( $# )); do
 done
 
 # multilib must be handled specially
-archbuild_arch="${arch}"
 if [[ $repo = multilib* ]]; then
-    archbuild_arch=
+    arch=
 fi
 
-archbuild_cmd=("${repo}${archbuild_arch:+-${archbuild_arch}}-build")
+chrootdir=/var/lib/archbuild
+archbuild_cmd=("${repo}${arch:+-${arch}}-build")
 
 # reassemble archbuild->makechrootpkg->makepkg args, but check if we need
 # to specially handle any of them
@@ -88,6 +88,9 @@ while (( $# )); do
     case $1 in
         --)
             (( ++nested ))
+            ;;&
+        -r)
+            (( nested == 0 )) && chrootdir=$2
             ;;&
         -p)
             if (( nested == 2 )); then
@@ -131,12 +134,8 @@ mapfile -t files < <(
                 printf "%s\n" "" "-> build complete" &&
                 printf "\t%s\n" "$temp"/*
             } >&2 &&
-            makepkg_user_config="${XDG_CONFIG_HOME:-$HOME/.config}/pacman/makepkg.conf" &&
-            makepkg_config="/usr/share/devtools/makepkg-'"${arch}"'.conf" &&
-            if [[ -f /usr/share/devtools/makepkg-'"${repo}"'-'"${arch}"'.conf ]]; then
-                makepkg_config="/usr/share/devtools/makepkg-'"${repo}"'-'"${arch}"'.conf"
-            fi &&
-            makepkg --config <(cat "${makepkg_user_config}" "${makepkg_config}" 2>/dev/null) --packagelist &&
+            export PKGEXT="$(. '"${chrootdir@Q}/${repo}-${arch}"'/root/etc/makepkg.conf; echo "$PKGEXT")" &&
+            makepkg --packagelist &&
             printf "%s\n" "${temp}/PKGBUILD"
 ')
 
