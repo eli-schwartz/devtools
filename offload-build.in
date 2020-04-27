@@ -79,7 +79,22 @@ if [[ $repo = multilib* ]]; then
     archbuild_arch=
 fi
 
-archbuild_cmd=("${repo}${archbuild_arch:+-$archbuild_arch}-build" "$@")
+archbuild_cmd=("${repo}${archbuild_arch:+-${archbuild_arch}}-build")
+
+# reassemble archbuild->makechrootpkg->makepkg args, but check if we need
+# to specially handle any of them
+nested=0
+while (( $# )); do
+    case $1 in
+        --)
+            (( ++nested ))
+            ;;&
+        *)
+            archbuild_cmd+=("$1")
+            shift
+            ;;
+    esac
+done
 
 trap 'rm -rf $TEMPDIR' EXIT INT TERM QUIT
 
