@@ -134,8 +134,9 @@ mapfile -t files < <(
                 printf "%s\n" "" "-> build complete" &&
                 printf "\t%s\n" "$temp"/*
             } >&2 &&
-            export PKGEXT="$(. '"${chrootdir@Q}/${repo}-${arch}"'/root/etc/makepkg.conf; echo "$PKGEXT")" &&
-            makepkg --packagelist &&
+            makepkg_user_config="${XDG_CONFIG_HOME:-$HOME/.config}/pacman/makepkg.conf" &&
+            makepkg_config="'"${chrootdir@Q}/${repo}-${arch}"'/root/etc/makepkg.conf" &&
+            makepkg --config <(cat "${makepkg_user_config}" "${makepkg_config}" 2>/dev/null) --packagelist &&
             printf "%s\n" "${temp}/PKGBUILD"
 ')
 
