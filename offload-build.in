@@ -89,6 +89,12 @@ while (( $# )); do
         --)
             (( ++nested ))
             ;;&
+        -p)
+            if (( nested == 2 )); then
+                buildscript=$2
+                shift 2
+            fi
+            ;;
         *)
             archbuild_cmd+=("$1")
             shift
@@ -103,7 +109,7 @@ trap 'rm -rf $TEMPDIR' EXIT INT TERM QUIT
 # transferred, including local sources, install scripts, and changelogs.
 export TEMPDIR=$(mktemp -d --tmpdir offload-build.XXXXXXXXXX)
 export SRCPKGDEST=${TEMPDIR}
-makepkg --source || die "unable to make source package"
+makepkg --source ${buildscript:+-p ${buildscript}} || die "unable to make source package"
 
 # Temporary cosmetic workaround makepkg if SRCDEST is set somewhere else
 # but an empty src dir is created in PWD. Remove once fixed in makepkg.
@@ -140,7 +146,7 @@ if (( ${#files[@]} )); then
     load_makepkg_config
     scp "${files[@]/#/$server:}" "${TEMPDIR}/"
     mv "${TEMPDIR}"/*.pkg.tar* "${PKGDEST:-${PWD}}/"
-    mv "${TEMPDIR}/PKGBUILD" "${PWD}/"
+    mv "${TEMPDIR}/PKGBUILD" "${PWD}/${buildscript:-PKGBUILD}"
 else
     exit 1
 fi
